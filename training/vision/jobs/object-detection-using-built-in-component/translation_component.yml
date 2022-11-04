@@ -1,14 +1,14 @@
 $schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
 type: pipeline
-display_name: object-detection-using-bulit-in-component
-description: Trains an object detection model using a built-in component.
+display_name: image-setting-translation
+description: Translates image settings into sweep job object using a built-in component.
 
 compute: azureml:gpu-cluster-nc6s-v3
 
 jobs:
   train:
     type: command
-    component: file:../../components/object_detection/spec.yaml
+    component: file:../../components/image_translation/spec.yaml
     inputs:
       training_data:
         type: mltable
@@ -16,11 +16,14 @@ jobs:
       validation_data:
         type: mltable
         path: azureml://datastores/workspaceblobstore/paths/vision-od/valid/
+      
+      timeout_minutes: 60
+      max_trials: 5
+      
+      sampling_alorithm: Random
+      early_termination: Bandit
+      delay_evaluation: 5
+
+      
     resources:
       instance_count: 1
-
-  predict:
-    type: command
-    component: file:./predict.yml
-    inputs:
-      model: ${{parent.jobs.train.outputs.model}}

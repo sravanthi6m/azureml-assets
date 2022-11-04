@@ -1,11 +1,11 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 type: command
 
-description: Trains an object detection model. [Learn More](https://aka.ms/built-in-vision-components)
+description: Convert automl settings to HD sweep. [Learn More](https://aka.ms/built-in-vision-components)
 
-name: train_object_detection_model
-display_name: Train Object Detection Model (Private Preview)
-version: 0.0.2-preview
+name: automl_settings_convert
+display_name: AutoML Settings Converter (Private Preview)
+version: 0.0.1-preview
 
 inputs:
   training_data:
@@ -15,6 +15,33 @@ inputs:
     description: Validation data
     type: mltable
     optional: true
+  timeout_minutes:
+    description: Timeout
+    type: integer
+    optional: true
+  max_trials:
+    description: Max trials
+    type: integer
+    optional: true
+    default: 1
+    min: 0
+    max: 1000
+  max_concurrent_trials:
+    description: Max concurrent trials
+    type: integer
+    optional: true
+  sampling_algorithm:
+    description: Sampling algo Type
+    type: string
+    optional: true
+    default: Random
+    enum: ['Random', 'Grid', 'Bayesian']
+  early_termination:
+    description: Early termination policy type
+    type: string
+    optional: true
+    default: Bandit
+    enum: ['Bandit', 'MedianStopping', 'TruncationSelection']  
   model_name:
     description: Model name
     type: string
@@ -74,18 +101,23 @@ inputs:
     max: 1
 
 outputs:
-  model:
-    description: Trained model.
-    type: mlflow_model
+  sweep_json:
+    description: Json String.
+    type: string
 
 code: ../src
 
 environment: azureml:AzureML-AutoML-DNN-Vision-GPU:98
 
 command: >-
-  python -m object_detection.run
+  python -m image_translation.run
   --training_data ${{inputs.training_data}}
   $[[--validation_data ${{inputs.validation_data}}]]
+  $[[--timeout_minutes ${{inputs.timeout_minutes}}]]
+  $[[--max_trials ${{inputs.max_trials}}]]
+  $[[--max_concurrent_trials ${{inputs.max_concurrent_trials}}]]
+  $[[--sampling_algorithm ${{inputs.sampling_algorithm}}]]
+  $[[--early_termination_policy ${{inputs.early_termination}}]]
   --model_name  ${{inputs.model_name}}
   $[[--learning_rate  s${{inputs.learning_rate}}]]
   $[[--number_of_epochs ${{inputs.number_of_epochs}}]]
@@ -97,7 +129,7 @@ command: >-
   $[[--training_batch_size ${{inputs.training_batch_size}}]]
   $[[--validation_batch_size ${{inputs.validation_batch_size}}]]
   --weight_decay ${{inputs.weight_decay}}
-  --model_output ${{outputs.model}}
+  --sweep_json ${{outputs.sweep_json}}
 
 distribution:
   type: pytorch
