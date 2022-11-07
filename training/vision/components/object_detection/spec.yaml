@@ -85,17 +85,17 @@ environment: azureml:AzureML-AutoML-DNN-Vision-GPU:98
 command: >-
   python -m object_detection.run
   --training_data ${{inputs.training_data}}
-  [--validation_data ${{inputs.validation_data}}]
+  $[[--validation_data ${{inputs.validation_data}}]]
   --model_name  ${{inputs.model_name}}
-  [--learning_rate  ${{inputs.learning_rate}}]
-  [--number_of_epochs ${{inputs.number_of_epochs}}]
+  $[[--learning_rate  ${{inputs.learning_rate}}]]
+  $[[--number_of_epochs ${{inputs.number_of_epochs}}]]
   --optimizer ${{inputs.optimizer}}
   --model_size ${{inputs.yolov5_model_size}}
   --img_size ${{inputs.yolov5_img_size}}
   --min_size ${{inputs.min_size}}
   --max_size ${{inputs.max_size}}
-  [--training_batch_size ${{inputs.training_batch_size}}]
-  [--validation_batch_size ${{inputs.validation_batch_size}}]
+  $[[--training_batch_size ${{inputs.training_batch_size}}]]
+  $[[--validation_batch_size ${{inputs.validation_batch_size}}]]
   --weight_decay ${{inputs.weight_decay}}
   --model_output ${{outputs.model}}
 

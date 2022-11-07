@@ -1,0 +1,35 @@
+$schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
+type: pipeline
+description: Tune hyperparameters using Image OD component
+settings:
+    default_compute: azureml:gpu-cluster-nc6s
+jobs:
+  sweep_step:
+    type: sweep
+    inputs:
+      training_data:
+        type: mltable
+        path: azureml://datastores/workspaceblobstore/paths/vision-od/train/
+      validation_data:
+        type: mltable
+        path: azureml://datastores/workspaceblobstore/paths/vision-od/valid/
+      number_of_epochs: 15
+      optimizer: 'adam'
+      model_name: 'yolov5'
+    outputs:
+      model_output:
+      test_data:
+    sampling_algorithm: random
+    trial: file:../../components/object_detection/spec.yaml
+    search_space:
+      learning_rate:
+        type: uniform
+        min_value: 0.001
+        max_value: 0.01
+    objective:
+      goal: maximize
+      primary_metric: mean_average_precision
+    limits:
+      max_total_trials: 5
+      max_concurrent_trials: 5
+      timeout: 7200
