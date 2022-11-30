@@ -17,8 +17,8 @@ jobs:
       optimizer: 'adam'
       model_name: 'yolov5'
     outputs:
-      model_output:
-      test_data:
+      model:
+        type: mlflow_model
     sampling_algorithm: random
     trial: file:../../components/object_detection/spec.yaml
     search_space:
@@ -32,4 +32,4 @@ jobs:
     limits:
       max_total_trials: 5
       max_concurrent_trials: 5
-      timeout: 7200
+    
