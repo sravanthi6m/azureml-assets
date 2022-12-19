@@ -1,0 +1,1 @@
+{"training_parameters": {"model_name": "yolov5", "number_of_epochs": 15}, "search_space": [{"learning_rate": "Uniform(0.001, 0.01)"}], "job_limits": {"max_trials": 5, "max_concurrent_trials": 5}}
