@@ -1,23 +1,23 @@
 $schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
 type: pipeline
-description: Tune hyperparameters using Image Segmentation component
+description: Tune hyperparameters using Image Classification component
 
 jobs:
   train:
     type: command
-    component: ../../components/instance_segmentation/spec.yaml
+    component: ../../components/image_classification/spec.yaml
     compute: azureml:gpu-cluster-nc6s
     inputs:
       training_data:
         type: mltable
-        path: azureml://datastores/workspaceblobstore/paths/vision-seg/train/
+        path: azureml://datastores/workspaceblobstore/paths/vision-classification/train/
       validation_data:
         type: mltable
-        path: azureml://datastores/workspaceblobstore/paths/vision-seg/valid/
-      model_name: maskrcnn_resnet18_fpn
+        path: azureml://datastores/workspaceblobstore/paths/vision-classification/valid/
+      model_name: resnet18
       learning_rate: 0.01
       number_of_epochs: 15
-      nms_iou_threshold: 0.3
+      training_crop_size: 150
     outputs:
       model:
         type: mlflow_model

@@ -12,7 +12,7 @@ from azureml.automl.dnn.vision.common.exceptions import AutoMLVisionValidationEx
 from azureml.automl.dnn.vision.common.logging_utils import get_logger
 from azureml.automl.dnn.vision.common.constants import SettingsLiterals
 
-from settings import CommonSettings
+from .settings import CommonSettings
 
 
 logger = get_logger('azureml.automl.dnn.vision.asset_registry')
