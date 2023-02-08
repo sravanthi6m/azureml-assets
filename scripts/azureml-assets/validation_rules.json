@@ -3,6 +3,7 @@
     "ignore-file": [
       "azureml/assets/__init__.py:F401",
       "azureml/assets/environment/__init__.py:F401",
+      "azureml/assets/model/__init__.py:F401",
       "azureml/assets/util/__init__.py:F401"
     ],
     "justifications": [
@@ -13,6 +14,7 @@
     "exclude": [
       "azureml/assets/__init__.py",
       "azureml/assets/environment/__init__.py",
+      "azureml/assets/model/__init__.py",
       "azureml/assets/util/__init__.py"
     ],
     "justifications": [

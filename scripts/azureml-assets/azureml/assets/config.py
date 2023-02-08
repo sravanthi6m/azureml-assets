@@ -5,8 +5,10 @@
 
 import re
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
-from typing import Dict, List
+from setuptools._vendor.packaging import version
+from typing import Dict, List, Tuple
 from yaml import safe_load
 
 
@@ -232,6 +234,222 @@ class Spec(Config):
         return release_paths
 
 
+class ModelType(Enum):
+    """Enum for the Model Types accepted in ModelConfig."""
+
+    MLFLOW = 'mlflow_model'
+    CUSTOM = 'custom_model'
+    TRITON = 'triton_model'
+
+
+class ModelFlavor(Enum):
+    """Enum for the Flavors accepted in ModelConfig."""
+
+    HFTRANSFORMERS = 'hftransformers'
+    PYTORCH = 'pytorch'
+
+
+class ModelTaskName(Enum):
+    """Enum for the Task names accepted in ModelConfig."""
+
+    FILL_MASK = 'fill_mask'
+    MULTICLASS = 'multiclass'
+    MULTILABEL = 'multilabel'
+    NER = 'ner'
+    QUESTION_ANSWERING = 'question-answering'
+    SUMMARIZATION = 'summarization'
+    TEXT_GENERATION = 'text-generation'
+    TEXT_CLASSIFICATION = 'text-classification'
+
+
+class PathType(Enum):
+    """Enum for path types supported for model publishing."""
+
+    LOCAL = "local"  # Path to model files present locally.
+    GIT = "git"      # Model hosted on a public GIT repo and can be cloned by GIT LFS.
+    FTP = "ftp"      # <UNSUPPORTED> Model files hosted on a FTP endpoint.
+    HTTP = "http"    # <UNSUPPORTED> Model files hosted on a HTTP endpoint.
+    AZUREBLOB = "azureblob"  # Model files hosted on an AZUREBLOB blobstore with public read access.
+
+
+class AssetPath:
+    """Asset path."""
+
+    def __init__(self, asset_type: str, uri: str):
+        """Initialize asset path.
+
+        :param asset_type: path type. Valid values are [local, git, ftp, http, azure]
+        :type: str
+        :param uri: a valid URI to local or remote resource
+        :type: str
+        """
+        self._uri = uri
+        self._type = asset_type
+
+    @property
+    def uri(self) -> str:
+        """Asset URI."""
+        return self._uri
+
+    @property
+    def type(self) -> str:
+        """Asset type."""
+        return self._type
+
+
+class LocalAssetPath(AssetPath):
+    """Local asset path."""
+
+    def __init__(self, uri: str):
+        """Create a Local path of asset.
+
+        :param uri: Path to local model relative to asset.yaml
+        :type uri: str
+        """
+        super().__init__(PathType.LOCAL, uri=uri)
+
+
+class AzureBlobstoreAssetPath(AssetPath):
+    """Azure Blobstore asset path."""
+
+    BLOBSTORE_URI = "https://{}.blob.core.windows.net/{}/{}"
+
+    def __init__(self, storage_name: str, container_name: str, container_path: str):
+        """Create a Blobstore path.
+
+        :param storage_name: Blob container storage name
+        :type storage_name: str
+        :param container_name: Blob container name
+        :type container_name: str
+        :param container_path: Relative path of assets in blob container
+        :type container_path: str
+        """
+        self._storage_name = storage_name
+        self._container_name = container_name
+        self._container_path = container_path
+        uri = AzureBlobstoreAssetPath.BLOBSTORE_URI.format(storage_name, container_name, container_path)
+        super().__init__(PathType.AZUREBLOB, uri)
+
+
+class GitAssetPath(AssetPath):
+    """GIT asset path."""
+
+    def __init__(self, branch: str, uri: str):
+        """Create a GIT repo path.
+
+        :param branch: Git branch to checkout from
+        :type branch: str
+        :param uri: git clonable url of repo
+        :type uri: str
+        """
+        self._branch = branch
+        super().__init__(PathType.GIT, uri)
+
+
+class ModelConfig(Config):
+    """Model Config class."""
+
+    """
+    Example:
+
+    path: # should contain local_path or should contain package object
+        ##Local path example
+        type: local
+        uri: "../models/bert-base-uncased" # the local path to the model
+
+        ## GIT path example
+        type: git
+        uri: https://huggingface.co/bert-base-uncased
+        branch: main
+
+        ## Azure Blobstore example
+        type: azureblob
+        storage_name: my_storage
+        container_name: my_container
+        container_path: foo/bar
+    publish:
+        type: mlflow_model # could be one of (custom_model, mlflow_model, triton_model)
+        flavors: hftransformers # flavors should be specificed only for mlflow_model
+        task_name: translation #optional.Needed for mlflow_model huggingface flavour
+
+    """
+
+    def __init__(self, file_name: Path):
+        """Initialize object for the Model Properties extracted from extra_config model.yaml."""
+        super().__init__(file_name)
+        self._path = None
+        self._validate()
+
+    def _validate(self):
+        """Validate the yaml file."""
+        Config._validate_exists('model.path', self.path)
+        Config._validate_enum('model.path.type', self.path.type.value, PathType, True)
+        Config._validate_exists('model.publish', self._publish)
+        Config._validate_enum('model.type', self._type, ModelType, True)
+
+    @property
+    def path(self) -> AssetPath:
+        """Model Path."""
+        if self._path:
+            return self._path
+        path = self._yaml.get('path', {})
+        if path and path.get('type'):
+            path_type = path.get('type')
+            if path_type == PathType.AZUREBLOB.value:
+                self._path = AzureBlobstoreAssetPath(
+                    storage_name=path['storage_name'],
+                    container_name=path['container_name'],
+                    container_path=path['container_path'],
+                )
+            elif path_type == PathType.GIT.value:
+                self._path = GitAssetPath(branch=path['branch'], uri=path['uri'])
+            elif path_type == PathType.LOCAL.value:
+                self._path = LocalAssetPath(local_path=path['uri'])
+            elif path_type == PathType.HTTP.value or path_type == PathType.FTP.value:
+                raise NotImplementedError("Support for HTTP and FTP is being added.")
+        else:
+            raise Exception("path parameters are invalid")
+        return self._path
+
+    @property
+    def _publish(self) -> Dict[str, object]:
+        """Model publish properties."""
+        return self._yaml.get('publish')
+
+    @property
+    def _type(self) -> str:
+        """Model Type."""
+        return self._publish.get('type')
+
+    @property
+    def type(self) -> ModelType:
+        """Model Type Enum."""
+        type = self._type
+        return ModelType(type) if type else None
+
+    @property
+    def _flavors(self) -> str:
+        """Model Flavor."""
+        return self._publish.get('flavors')
+
+    @property
+    def flavors(self) -> ModelFlavor:
+        """Model Flavor from Enum."""
+        flavor = self._flavors
+        return ModelFlavor(flavor) if flavor else None
+
+    @property
+    def _task_name(self) -> ModelTaskName:
+        """Model Task Name Enum."""
+        return self._publish.get('task_name')
+
+    @property
+    def task_name(self) -> str:
+        """Model task name."""
+        task_name = self._task_name
+        return ModelTaskName(task_name) if task_name else None
+
+
 DEFAULT_DOCKERFILE = "Dockerfile"
 DEFAULT_TEMPLATE_FILES = [DEFAULT_DOCKERFILE]
 
@@ -280,11 +498,6 @@ class EnvironmentConfig(Config):
           publish: # If not specified, image won't be published
             location: mcr
             visibility: public
-        environment:
-          metadata:
-            os:
-              name: Ubuntu
-              version: "20.04"
     """
 
     def __init__(self, file_name: Path):
@@ -481,16 +694,6 @@ class EnvironmentConfig(Config):
         visiblity = self._publish_visibility
         return PublishVisibility(visiblity) if visiblity else None
 
-    @property
-    def _environment(self) -> Dict[str, object]:
-        """Raw 'environment' value."""
-        return self._yaml.get('environment', {})
-
-    @property
-    def environment_metadata(self) -> Dict[str, object]:
-        """Raw 'metadata' value."""
-        return self._environment.get('metadata')
-
 
 class AssetType(Enum):
     """Asset type."""
@@ -503,8 +706,11 @@ class AssetType(Enum):
 
 DEFAULT_ASSET_FILENAME = "asset.yaml"
 VERSION_AUTO = "auto"
+FULL_ASSET_NAME_TEMPLATE = "{type}/{name}/{version}"
+FULL_ASSET_NAME_DELIMITER = "/"
 
 
+@total_ordering
 class AssetConfig(Config):
     """Asset config file.
 
@@ -538,6 +744,31 @@ class AssetConfig(Config):
     def __str__(self) -> str:
         """Asset type, name, and version."""
         return f"{self.type.value} {self.name} {self.version}"
+
+    def __eq__(self, other) -> bool:
+        """Determine whether two AssetConfig objects are equal."""
+        if not isinstance(other, AssetConfig):
+            return NotImplemented
+
+        return (self.type.value, self.name, self.version) == (other.type.value, other.name, other.version)
+
+    def __lt__(self, other) -> bool:
+        """Determine whether an AssetConfig objects is less than another."""
+        if not isinstance(other, AssetConfig):
+            return NotImplemented
+
+        # Compare the easy ones first
+        if self.type.value != other.type.value:
+            return self.type.value < other.type.value
+        if self.name != other.name:
+            return self.name < other.name
+
+        # Reject auto-versioned assets
+        if self.version is None or other.version is None:
+            raise ValueError("Cannot compare auto-versioned assets")
+
+        # Compare versions using packaging's version object
+        return version.parse(self.version) < version.parse(other.version)
 
     def _validate(self):
         """Validate asset config.
@@ -598,6 +829,27 @@ class AssetConfig(Config):
                 raise ValidationException(f"Tried to read asset name from spec, "
                                           f"but it includes a template tag: {name}")
         return name
+
+    @property
+    def full_name(self) -> str:
+        """Full asset name, including type and version."""
+        return FULL_ASSET_NAME_TEMPLATE.format(type=self.type.value, name=self.name, version=self.version)
+
+    @staticmethod
+    def parse_full_name(full_name: str) -> Tuple[AssetType, str, str]:
+        """Parse a full name into its asset type, name, and version.
+
+        Args:
+            full_name (str): Full name to parse
+
+        Returns:
+            Tuple[assets.AssetType, str, str]: Asset type, name, and version
+        """
+        tag_parts = full_name.split(FULL_ASSET_NAME_DELIMITER)
+        if len(tag_parts) != 3:
+            raise ValueError(f"Invalid full name: {full_name}")
+
+        return AssetType(tag_parts[0]), tag_parts[1], tag_parts[2]
 
     @property
     def _version(self) -> str:
@@ -682,6 +934,8 @@ class AssetConfig(Config):
             if extra_config_with_path:
                 if self.type == AssetType.ENVIRONMENT:
                     self._extra_config = EnvironmentConfig(extra_config_with_path)
+                elif self.type == AssetType.MODEL:
+                    self._extra_config = ModelConfig(extra_config_with_path)
                 else:
                     raise Exception(f"extra_config loading for asset type {self.type.value} is unimplemented")
         return self._extra_config

@@ -1,11 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+"""Script utility methods."""
+
 import difflib
 import filecmp
+import re
 import shutil
 from pathlib import Path
 from typing import List, Tuple, Union
+import yaml
 
 import azureml.assets as assets
 from azureml.assets.util import logger
@@ -116,17 +120,40 @@ def copy_replace_dir(source: Path, dest: Path, paths: List[Path] = None):
                 shutil.copyfile(source_path, dest_path)
 
 
-def get_asset_output_dir(asset_config: assets.AssetConfig, output_directory_root: Path) -> Path:
+def get_asset_output_dir(asset_config: assets.AssetConfig, output_directory_root: Path,
+                         use_version_dir: bool = False) -> Path:
     """Generate the output directory for a given asset.
 
     Args:
         asset_config (assets.AssetConfig): Asset config
         output_directory_root (Path): Output directory root
+        use_version_dir (bool, optional): Add version-specific directory
 
     Returns:
         Path: The output directory
     """
-    return Path(output_directory_root, asset_config.type.value, asset_config.name)
+    version = asset_config.version if use_version_dir else None
+    return get_asset_output_dir_from_parts(asset_config.type, asset_config.name, output_directory_root, version)
+
+
+def get_asset_output_dir_from_parts(type: assets.AssetType, name: str, output_directory_root: Path,
+                                    version: str = None) -> Path:
+    """Generate the output directory for a given asset.
+
+    Args:
+        type (assets.AssetConfig): Asset type
+        name (str): Asset name
+        output_directory_root (Path): Output directory root
+        version (str, optional): Asset version
+
+    Returns:
+        Path: The output directory
+    """
+    output_directory = Path(output_directory_root, type.value, name)
+    if version is not None:
+        output_directory = output_directory / version
+
+    return output_directory
 
 
 def get_asset_release_dir(asset_config: assets.AssetConfig, release_directory_root: Path) -> Path:
@@ -142,16 +169,34 @@ def get_asset_release_dir(asset_config: assets.AssetConfig, release_directory_ro
     return get_asset_output_dir(asset_config, release_directory_root / RELEASE_SUBDIR)
 
 
-def copy_asset_to_output_dir(asset_config: assets.AssetConfig, output_directory: Path, add_subdir: bool = False):
+def get_asset_release_dir_from_parts(type: assets.AssetType, name: str, release_directory_root: Path) -> Path:
+    """Generate the release directory for a given asset.
+
+    Args:
+        type (assets.AssetConfig): Asset type
+        name (str): Asset name
+        release_directory_root (Path): Release directory root
+
+    Returns:
+        Path: The release directory
+    """
+    return get_asset_output_dir_from_parts(type, name, release_directory_root / RELEASE_SUBDIR)
+
+
+def copy_asset_to_output_dir(asset_config: assets.AssetConfig, output_directory: Path, add_subdir: bool = False,
+                             use_version_dir: bool = False):
     """Copy asset directory to output directory.
 
     Args:
         asset_config (assets.AssetConfig): Asset config to copy
         output_directory_root (Path): Output directory root
         add_subdir (bool, optional): Add asset-specific subdirectories to output_directory
+        use_version_dir (bool, optional): Store asset in version-specific directory
     """
     if add_subdir:
-        output_directory = output_directory / get_asset_output_dir(asset_config, output_directory)
+        output_directory = get_asset_output_dir(asset_config, output_directory, use_version_dir)
+    elif use_version_dir:
+        output_directory = output_directory / asset_config.version
 
     common_dir, relative_release_paths = find_common_directory(asset_config.release_paths)
     copy_replace_dir(source=common_dir, dest=output_directory, paths=relative_release_paths)
@@ -233,7 +278,8 @@ def find_assets(input_dirs: Union[List[Path], Path],
                 asset_config_filename: str = assets.DEFAULT_ASSET_FILENAME,
                 types: Union[List[assets.AssetType], assets.AssetType] = None,
                 changed_files: List[Path] = None,
-                exclude_dirs: List[Path] = None) -> List[assets.AssetConfig]:
+                exclude_dirs: List[Path] = None,
+                pattern: re.Pattern = None) -> List[assets.AssetConfig]:
     """Search directories for assets.
 
     Args:
@@ -242,6 +288,7 @@ def find_assets(input_dirs: Union[List[Path], Path],
         types (Union[List[assets.AssetType], assets.AssetType], optional): AssetTypes to search for.
         changed_files (List[Path], optional): Changed files, used to filter assets in input_dirs.
         exclude_dirs (Union[List[Path], Path], optional): Directories that should be excluded from the search.
+        pattern (re.Pattern, optional): Regex pattern used to filter assets. Defaults to None.
 
     Returns:
         List[assets.AssetConfig]: Assets found.
@@ -256,6 +303,10 @@ def find_assets(input_dirs: Union[List[Path], Path],
 
         # If specified, skip types not included in filter
         if types and asset_config.type not in types:
+            continue
+
+        # If specified, skip assets that don't match the pattern
+        if pattern is not None and not pattern.fullmatch(asset_config.full_name):
             continue
 
         found_assets.append(asset_config)
@@ -333,3 +384,28 @@ def find_common_directory(paths: List[Path]) -> Tuple[Path, List[Path]]:
     relative_paths = [p.relative_to(lowest_common_dir) for p in paths_resolved]
 
     return lowest_common_dir, relative_paths
+
+
+def load_yaml(file_path: str) -> dict:
+    """Load yaml utility.
+
+    Args:
+        file_path (str): yaml file path
+
+    Returns:
+        dict: loaded yaml as dict
+    """
+    with open(file_path, "r") as f:
+        yaml_dict = yaml.safe_load(f)
+    return yaml_dict
+
+
+def dump_yaml(yaml_dict: dict, file_path: str):
+    """Dump yaml utility.
+
+    Args:
+        yaml_dict (str): dictionary object to dump into yaml.
+        file_path (str): File path to store dump result to.
+    """
+    with open(file_path, "w") as f:
+        yaml_dict = yaml.safe_dump(yaml_dict, f)

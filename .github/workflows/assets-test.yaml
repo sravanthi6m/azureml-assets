@@ -27,8 +27,9 @@ on:
 
 env:
   scripts_azureml_assets_dir: scripts/azureml-assets
-  scripts_assets_dir: scripts/azureml-assets/azureml/assets
   scripts_setup_dir: scripts/setup
+  scripts_test_dir: scripts/test
+  scripts_dir: scripts
   asset_config_filename: asset.yaml
   pytest_reports: pytest-reports
 
@@ -65,7 +66,7 @@ jobs:
       
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v24
+        uses: tj-actions/changed-files@v35
         with:
           files_separator: ','
           separator: ','
@@ -81,7 +82,7 @@ jobs:
 
       - name: Create test matrix for changed assets
         id: create-test-matrix
-        run: python -u $scripts_assets_dir/create_asset_test_matrix.py -i "${{ github.event.inputs.asset_dirs || env.default_asset_dirs }}" -a $asset_config_filename -c "${{ steps.changed-files.outputs.all_modified_files }}"
+        run: python -u $scripts_test_dir/create_asset_test_matrix.py -i "${{ github.event.inputs.asset_dirs || env.default_asset_dirs }}" -a $asset_config_filename -c "${{ steps.changed-files.outputs.all_modified_files }}"
 
       - name: Login to Azure and create resources
         if: steps.create-test-matrix.outputs.test_count > 0
@@ -114,9 +115,6 @@ jobs:
       # Required for OIDC login to Azure
       id-token: write
     
-    env:
-      package_versions_file: scripts/test-requirements.txt
-
     steps:
       - name: Clone branch
         uses: Azure/azureml-assets/.github/actions/clone-repo@main
@@ -131,6 +129,10 @@ jobs:
       - name: Install dependencies
         run: pip install -e $scripts_azureml_assets_dir
 
+      - name: Setup azcopy
+        shell: bash
+        run: source $scripts_dir/install_azcopy.sh
+
       - name: Log in to Azure and create resources
         uses: ./.github/actions/create-azure-resources
         with:
@@ -140,7 +142,7 @@ jobs:
           scripts-setup-dir: ${{ env.scripts_setup_dir }}
       
       - name: Test asset
-        run: python -u $scripts_assets_dir/test_assets.py -i "${{ matrix.asset_config_path }}" -a $asset_config_filename -p $package_versions_file -r $GITHUB_WORKSPACE/$pytest_reports
+        run: python -u $scripts_test_dir/test_assets.py -i "${{ matrix.asset_config_path }}" -a $asset_config_filename -p $scripts_test_dir/requirements.txt -r $GITHUB_WORKSPACE/$pytest_reports
 
       - name: Upload test results
         uses: actions/upload-artifact@v3

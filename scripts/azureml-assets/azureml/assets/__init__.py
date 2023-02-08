@@ -6,15 +6,18 @@ from .config import (
     AssetType,
     Config,
     DEFAULT_ASSET_FILENAME,
+    ModelConfig,
+    ModelFlavor,
+    ModelTaskName,
+    ModelType,
     EnvironmentConfig,
     Os,
+    PathType,
     PublishLocation,
     PublishVisibility,
     Spec,
 )
-from .test_assets import test_assets
 from .update_assets import (
-    get_release_tag_name,
     pin_env_files,
     release_tag_exists,
     update_asset,

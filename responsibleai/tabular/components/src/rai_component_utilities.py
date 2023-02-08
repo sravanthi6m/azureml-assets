@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+import sys
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import shutil
 import tempfile
 import uuid
 import re
+import subprocess
 
 import mlflow
 import mltable
@@ -19,12 +21,14 @@ from typing import Any, Dict, Optional
 from azureml.core import Model, Run, Workspace
 
 from responsibleai import RAIInsights, __version__ as responsibleai_version
+from responsibleai.feature_metadata import FeatureMetadata
 
 from constants import DashboardInfo, PropertyKeyValues, RAIToolType
 
 assetid_re = re.compile(
     r"azureml://locations/(?P<location>.*)/workspaces/(?P<workspaceid>.*)/(?P<assettype>.*)/(?P<assetname>.*)/versions/(?P<assetversion>.*)"
 )
+data_type = "data_type"
 
 _logger = logging.getLogger(__file__)
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +41,10 @@ _tool_directory_mapping: Dict[str, str] = {
     RAIToolType.ERROR_ANALYSIS: "error_analysis",
     RAIToolType.EXPLANATION: "explainer",
 }
+
+
+class UserConfigError(Exception):
+    pass
 
 
 def print_dir_tree(base_dir):
@@ -64,15 +72,50 @@ def fetch_model_id(model_info_path: str):
 
 def load_mlflow_model(
     workspace: Workspace,
+    use_model_dependency: bool = False,
     model_id: Optional[str] = None,
     model_path: Optional[str] = None,
 ) -> Any:
     model_uri = model_path
+    mlflow.set_tracking_uri(workspace.get_mlflow_tracking_uri())
+
     if model_id:
-        model = Model._get(workspace, id=model_id)
-        mlflow.set_tracking_uri(workspace.get_mlflow_tracking_uri())
+        try:
+            model = Model._get(workspace, id=model_id)
+        except Exception as e:
+            raise UserConfigError("Unable to retrieve model by model id {} in workspace {}, error:\n{}".format(model_id, workspace.name, e))
         model_uri = "models:/{}/{}".format(model.name, model.version)
-    return mlflow.pyfunc.load_model(model_uri)._model_impl
+
+    if use_model_dependency:
+        try:
+            pip_file = mlflow.pyfunc.get_model_dependencies(model_uri)
+        except Exception as e:
+            raise ValueError("Failed to get model dependency from given model {}, error:\n{}".format(model_uri, e))
+        try:
+            subprocess.check_output([sys.executable, "-m", "pip",
+                                    "install", "-r", pip_file])
+        except subprocess.CalledProcessError as e:
+            _logger.error("Installing dependency using requriments.txt from mlflow model failed: {}".format(e.output))
+            _classify_and_log_pip_install_error(e.output)
+            raise UserConfigError(
+                "Installing dependency using requirments.txt from mlflow model failed. "
+                "This behavior can be turned off with setting use_model_dependency to False in job spec. "
+                "You may also check error log above to manually resolve package conflict error")
+        _logger.info("Successfully installed model dependencies")
+
+    try:
+        model = mlflow.pyfunc.load_model(model_uri)._model_impl
+        return model
+    except Exception as e:
+        raise ValueError("Unable to load mlflow model from {} in current environment due to error:\n{}".format(model_uri, e))
+
+
+def _classify_and_log_pip_install_error(elog):
+    if "Could not find a version that satisfies the requirement" in elog:
+        _logger.warn("Detected unsatisfiable version requirment.")
+
+    if "package versions have conflicting dependencies" in elog:
+        _logger.warn("Detected dependency conflict error.")
 
 
 def load_mltable(mltable_path: str) -> pd.DataFrame:
@@ -115,7 +158,7 @@ def load_dashboard_info_file(input_port_path: str) -> Dict[str, str]:
         input_port_path, DashboardInfo.RAI_INSIGHTS_PARENT_FILENAME
     )
     with open(rai_insights_dashboard_file, "r") as si:
-        dashboard_info = json.load(si)
+        dashboard_info = json.load(si, object_hook=default_object_hook)
     _logger.info("rai_insights_parent info: {0}".format(dashboard_info))
     return dashboard_info
 
@@ -272,11 +315,18 @@ def create_rai_insights_from_port_path(my_run: Run, port_path: str) -> RAIInsigh
     _logger.info("Loading config file")
     config = load_dashboard_info_file(port_path)
     constructor_args = config[DashboardInfo.RAI_INSIGHTS_CONSTRUCTOR_ARGS_KEY]
+    _logger.info(f"Constuctor args: {constructor_args}")
 
     _logger.info("Loading model")
+    input_args = config[DashboardInfo.RAI_INSIGHTS_INPUT_ARGS_KEY]
+    use_model_dependency = input_args["use_model_dependency"]
     model_id = config[DashboardInfo.RAI_INSIGHTS_MODEL_ID_KEY]
     _logger.info("Loading model: {0}".format(model_id))
-    model_estimator = load_mlflow_model(my_run.experiment.workspace, model_id)
+
+    model_estimator = load_mlflow_model(
+        workspace=my_run.experiment.workspace,
+        use_model_dependency=use_model_dependency,
+        model_id=model_id)
 
     _logger.info("Creating RAIInsights object")
     rai_i = RAIInsights(
@@ -307,3 +357,19 @@ def get_dataset_name_version(run, dataset_input_name):
     aid = get_run_input_assets(run)[dataset_input_name]["asset"]["assetId"]
     ainfo = get_asset_information(aid)
     return f'{ainfo["assetname"]}:{ainfo["assetversion"]}'
+
+
+def default_json_handler(data):
+    if isinstance(data, FeatureMetadata):
+        meta_dict = data.__dict__
+        type_name = type(data).__name__
+        meta_dict[data_type] = type_name
+        return meta_dict
+    return None
+
+
+def default_object_hook(dict):
+    if data_type in dict and dict[data_type] == FeatureMetadata.__name__:
+        del dict[data_type]
+        return FeatureMetadata(**dict)
+    return dict
