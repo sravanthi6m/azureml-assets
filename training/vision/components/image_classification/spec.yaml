@@ -89,18 +89,12 @@ inputs:
     type: string
     description: Model name
     default: vitb16r224
-    enum: ['mobilenetv2', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'resnest50', 'resnest101', 'seresnext', 'vits16r224', 'vitb16r224', 'vitl16r224']
   momentum:
     description: Value of momentum when optimizer is sgd. Must be a float in the range [0, 1].
     type: number
     optional: true
     min: 0
     max: 1
-  model_size:
-    description: Model size for yolov5.
-    type: string
-    default: medium
-    enum: ['small', 'medium', 'large', 'xlarge']
   nesterov:
     description: Enable nesterov when optimizer is sgd. Must be 0 or 1.
     type: integer
@@ -113,6 +107,7 @@ inputs:
   optimizer:
     description: Type of optimizer
     type: string
+    optional: true
     default: sgd
     enum: ['sgd', 'adam', 'adamw']
   step_lr_gamma:
@@ -169,6 +164,7 @@ inputs:
   weight_decay:
     description: Value of weight decay used by the optimizer.
     type: number
+    optional: true
     default: 0.0001
     min: 0
     max: 1
@@ -176,6 +172,7 @@ inputs:
     description: 0 for no weighted loss, 1 for weighted loss with sqrt (class_weights), 2 for weighted loss with class_weights.
     type: integer
     optional: true
+    default: 0
 
 outputs:
   model:
@@ -208,7 +205,7 @@ command: >-
   $[[--momentum  ${{inputs.momentum}}]]
   $[[--nesterov  ${{inputs.nesterov}}]]
   $[[--number_of_epochs ${{inputs.number_of_epochs}}]]
-  --optimizer ${{inputs.optimizer}}
+  $[[--optimizer ${{inputs.optimizer}}]]
   $[[--step_lr_gamma  ${{inputs.step_lr_gamma}}]]
   $[[--step_lr_step_size  ${{inputs.step_lr_step_size}}]]
   $[[--training_batch_size ${{inputs.training_batch_size}}]]
@@ -216,7 +213,7 @@ command: >-
   $[[--validation_batch_size ${{inputs.validation_batch_size}}]]
   $[[--valid_crop_size ${{inputs.validation_crop_size}}]]
   $[[--valid_resize_size ${{inputs.validation_resize_size}}]]
-  --weight_decay ${{inputs.weight_decay}}
+  $[[--weight_decay ${{inputs.weight_decay}}]]
   $[[--weighted_loss ${{inputs.weighted_loss}}]]
   --model_output ${{outputs.model}}
 
