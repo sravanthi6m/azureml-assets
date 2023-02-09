@@ -16,8 +16,8 @@ inputs:
     type: mltable
     optional: true
   ams_gradient:
-    description: Enable ams_gradient when optimizer is adam or adamw. Must be 0 or 1.
-    type: integer
+    description: Enable ams_gradient when optimizer is adam or adamw.
+    type: boolean
     optional: true
   beta1:
     description: Value of beta1 when optimizer is adam or adamw. Must be a float in the range [0, 1].
@@ -52,8 +52,8 @@ inputs:
     type: string
     optional: true
   early_stopping:
-    description: Enable early stopping logic during training. Must be 0 or 1.
-    type: integer
+    description: Enable early stopping logic during training.
+    type: boolean
     optional: true
   early_stopping_patience:
     description: Minimum number of epochs or validation evaluations with no primary metric improvement before the run is stopped. Must be a positive integer.
@@ -96,13 +96,11 @@ inputs:
     description: Maximum size of the image to be rescaled before feeding it to the backbone.
     type: integer
     optional: true
-    default: 1333
     min: 1
   min_size:
     description: Minimum size of the image to be rescaled before feeding it to the backbone. Must be a positive integer.
     type: integer
     optional: true
-    default: 600
     min: 1
   model_name:
     description: Model name
@@ -121,12 +119,12 @@ inputs:
     default: medium
     enum: ['small', 'medium', 'large', 'xlarge']
   multi_scale:
-    description: Enable multi-scale image by varying image size by +/- 50%. Must be 0 or 1.
-    type: integer
+    description: Enable multi-scale image by varying image size by +/- 50%.
+    type: boolean
     optional: true
   nesterov:
-    description: Enable nesterov when optimizer is sgd. Must be 0 or 1.
-    type: integer
+    description: Enable nesterov when optimizer is sgd.
+    type: boolean
     optional: true
   nms_iou_threshold:
     description: IOU threshold used during inference in non-maximum suppression post processing. Must be a float in the range [0, 1].
@@ -208,7 +206,6 @@ inputs:
     description: Value of weight decay used by the optimizer.
     type: number
     optional: true
-    default: 0.0001
     min: 0
     max: 1
 outputs:
@@ -224,7 +221,7 @@ command: >-
   python -m object_detection.run
   --training_data ${{inputs.training_data}}
   $[[--validation_data ${{inputs.validation_data}}]]
-  $[[--ams_gradient  ${{inputs.ams_gradient}}]]
+  $[[--amsgrad  ${{inputs.ams_gradient}}]]
   $[[--beta1  ${{inputs.beta1}}]]
   $[[--beta2  ${{inputs.beta2}}]]
   $[[--box_detections_per_img  ${{inputs.box_detections_per_image}}]]

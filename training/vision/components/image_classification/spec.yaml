@@ -20,8 +20,8 @@ inputs:
     type: boolean
     default: false
   ams_gradient:
-    description: Enable ams_gradient when optimizer is adam or adamw. Must be 0 or 1.
-    type: integer
+    description: Enable ams_gradient when optimizer is adam or adamw.
+    type: boolean
     optional: true
   beta1:
     description: Value of beta1 when optimizer is adam or adamw. Must be a float in the range [0, 1].
@@ -45,8 +45,8 @@ inputs:
     type: string
     optional: true
   early_stopping:
-    description: Enable early stopping logic during training. Must be 0 or 1.
-    type: integer
+    description: Enable early stopping logic during training.
+    type: boolean
     optional: true
   early_stopping_patience:
     description: Minimum number of epochs or validation evaluations with no primary metric improvement before the run is stopped. Must be a positive integer.
@@ -96,8 +96,8 @@ inputs:
     min: 0
     max: 1
   nesterov:
-    description: Enable nesterov when optimizer is sgd. Must be 0 or 1.
-    type: integer
+    description: Enable nesterov when optimizer is sgd.
+    type: boolean
     optional: true
   number_of_epochs:
     description: Number of training epochs
@@ -129,7 +129,6 @@ inputs:
   training_crop_size:
     type: integer
     optional: true
-    default: 224
     description: Image crop size that's input to your neural network for training dataset. Note - seresnext doesn't take an arbitrary size. ViT-variants should have the same validation_crop_size and training_crop_size.
     min: 1
   validation_batch_size:
@@ -141,13 +140,11 @@ inputs:
   validation_crop_size:
     type: integer
     optional: true
-    default: 224
     description: Image crop size that's input to your neural network for validation dataset. Note - seresnext doesn't take an arbitrary size. ViT-variants should have the same validation_crop_size and training_crop_size.
     min: 1
   validation_resize_size:
     type: integer
     optional: true
-    default: 256
     description: Image size to which to resize before cropping for validation dataset. Note - seresnext doesn't take an arbitrary size.
     min: 1
   warmup_cosine_lr_cycles:
@@ -165,14 +162,12 @@ inputs:
     description: Value of weight decay used by the optimizer.
     type: number
     optional: true
-    default: 0.0001
     min: 0
     max: 1
   weighted_loss: 
     description: 0 for no weighted loss, 1 for weighted loss with sqrt (class_weights), 2 for weighted loss with class_weights.
     type: integer
     optional: true
-    default: 0
 
 outputs:
   model:
@@ -188,7 +183,7 @@ command: >-
   --training_data ${{inputs.training_data}}
   $[[--validation_data ${{inputs.validation_data}}]]
   --multilabel ${{inputs.multilabel}}
-  $[[--ams_gradient  ${{inputs.ams_gradient}}]]
+  $[[--amsgrad  ${{inputs.ams_gradient}}]]
   $[[--beta1  ${{inputs.beta1}}]]
   $[[--beta2  ${{inputs.beta2}}]]
   $[[--checkpoint_frequency  ${{inputs.checkpoint_frequency}}]]
