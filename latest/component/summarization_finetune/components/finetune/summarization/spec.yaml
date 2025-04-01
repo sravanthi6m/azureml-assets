@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: summarization_finetune
-version: 0.0.20
+version: 0.0.72
 type: command
 
 is_deterministic: true
@@ -11,7 +11,7 @@ description: Component to finetune Hugging Face pretrained models for summarizat
   for performance enhancement. See [docs](https://aka.ms/azureml/components/summarization_finetune)
   to learn more.
 
-environment: azureml://registries/azureml/environments/acft-hf-nlp-gpu/versions/25
+environment: azureml://registries/azureml/environments/acft-hf-nlp-gpu/versions/87
 
 code: ../../../src/finetune
 
@@ -253,7 +253,7 @@ inputs:
 
   logging_strategy:
     type: string
-    default: epoch
+    default: steps
     optional: true
     enum:
     - epoch
@@ -264,7 +264,7 @@ inputs:
 
   logging_steps:
     type: integer
-    default: 500
+    default: 10
     optional: true
     description: Number of update steps between two logs if logging_strategy='steps'
 
@@ -342,6 +342,19 @@ inputs:
     type: uri_file
     optional: true
     description: Deepspeed config to be used for finetuning
+    mode: rw_mount
+
+  deepspeed_stage:
+    type: string
+    optional: true
+    default: "2"
+    enum:
+    - "2"
+    - "3"
+    description: This parameter configures which DEFAULT deepspeed config to be used
+      - stage2 or stage3. The default choice is stage2. Note that, this parameter
+      is ONLY applicable when user doesn't pass any config information via deepspeed
+      port.
 
   # ORT Parameters
   # ONNX Runtime is a cross-platform machine-learning model accelerator, with a flexible interface to integrate hardware-specific libraries.
@@ -360,12 +373,14 @@ inputs:
     optional: false
     description: output folder of preprocess component containing encoded train, valid
       and test data. The tokenizer is also saved as part of preprocess output
+    mode: rw_mount
 
   model_selector_output:
     type: uri_folder
     optional: false
     description: output folder of model import component containing model artifacts
       and a metadata file.
+    mode: rw_mount
 
 outputs:
   pytorch_model_folder:
@@ -375,10 +390,7 @@ outputs:
       evaluation which is defined by the _evaluation_strategy_. Each checkpoint contains
       the model weight(s), config, tokenizer, optimzer, scheduler and random number
       states.
-
-  mlflow_model_folder:
-    type: mlflow_model
-    description: output folder containing _best_ finetuned model in mlflow format.
+    mode: rw_mount
 
 command: >-
   python finetune.py $[[--apply_lora '${{inputs.apply_lora}}']] $[[--merge_lora_weights
@@ -404,7 +416,6 @@ command: >-
   $[[--early_stopping_patience '${{inputs.early_stopping_patience}}']] $[[--early_stopping_threshold
   '${{inputs.early_stopping_threshold}}']] $[[--apply_ort '${{inputs.apply_ort}}']]
   $[[--apply_deepspeed '${{inputs.apply_deepspeed}}']] $[[--deepspeed '${{inputs.deepspeed}}']]
-  --model_selector_output '${{inputs.model_selector_output}}' --preprocess_output
-  '${{inputs.preprocess_output}}' --pytorch_model_folder '${{outputs.pytorch_model_folder}}'
-  --mlflow_model_folder '${{outputs.mlflow_model_folder}}'
+  $[[--deepspeed_stage '${{inputs.deepspeed_stage}}']] --model_selector_output '${{inputs.model_selector_output}}'
+  --preprocess_output '${{inputs.preprocess_output}}' --pytorch_model_folder '${{outputs.pytorch_model_folder}}'
 

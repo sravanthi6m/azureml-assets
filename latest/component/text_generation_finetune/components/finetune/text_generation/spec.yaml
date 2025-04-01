@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: text_generation_finetune
-version: 0.0.20
+version: 0.0.72
 type: command
 
 is_deterministic: true
@@ -8,7 +8,7 @@ is_deterministic: true
 display_name: Text Generation Finetune
 description: Component to finetune model for Text Generation task
 
-environment: azureml://registries/azureml/environments/acft-hf-nlp-gpu/versions/25
+environment: azureml://registries/azureml/environments/acft-hf-nlp-gpu/versions/87
 
 code: ../../../src/finetune
 
@@ -240,7 +240,7 @@ inputs:
 
   logging_strategy:
     type: string
-    default: epoch
+    default: steps
     optional: true
     enum:
     - epoch
@@ -249,7 +249,7 @@ inputs:
 
   logging_steps:
     type: integer
-    default: 500
+    default: 10
     optional: true
     description: Number of update steps between two logs if logging_strategy='steps'
 
@@ -315,6 +315,19 @@ inputs:
     type: uri_file
     optional: true
     description: Deepspeed config to be used for finetuning
+    mode: rw_mount
+
+  deepspeed_stage:
+    type: string
+    optional: true
+    default: "2"
+    enum:
+    - "2"
+    - "3"
+    description: This parameter configures which DEFAULT deepspeed config to be used
+      - stage2 or stage3. The default choice is stage2. Note that, this parameter
+      is ONLY applicable when user doesn't pass any config information via deepspeed
+      port.
 
   # ORT Parameters
   apply_ort:
@@ -332,21 +345,26 @@ inputs:
     optional: false
     description: output folder of preprocessor containing encoded train.jsonl valid.jsonl
       and the model pretrained info
+    mode: rw_mount
 
   model_selector_output:
     type: uri_folder
     optional: false
     description: output folder of model selector containing model metadata like config,
       checkpoints, tokenizer config
+    mode: rw_mount
+
+  # Validation parameters
+  system_properties:
+    type: string
+    optional: true
+    description: Validation parameters propagated from pipeline.
 
 outputs:
   pytorch_model_folder:
     type: uri_folder
     description: Output dir to save the finetune model and other metadata
-
-  mlflow_model_folder:
-    type: mlflow_model
-    description: Output dir to save the finetune model as mlflow model
+    mode: rw_mount
 
 command: >-
   python finetune.py $[[--apply_lora '${{inputs.apply_lora}}']] $[[--merge_lora_weights
@@ -372,7 +390,7 @@ command: >-
   $[[--early_stopping_patience '${{inputs.early_stopping_patience}}']] $[[--early_stopping_threshold
   '${{inputs.early_stopping_threshold}}']] $[[--apply_ort '${{inputs.apply_ort}}']]
   $[[--apply_deepspeed '${{inputs.apply_deepspeed}}']] $[[--deepspeed '${{inputs.deepspeed}}']]
-  --model_selector_output '${{inputs.model_selector_output}}' --preprocess_output
-  '${{inputs.preprocess_output}}' --pytorch_model_folder '${{outputs.pytorch_model_folder}}'
-  --mlflow_model_folder '${{outputs.mlflow_model_folder}}'
+  $[[--deepspeed_stage '${{inputs.deepspeed_stage}}']] --model_selector_output '${{inputs.model_selector_output}}'
+  --preprocess_output '${{inputs.preprocess_output}}' $[[--system_properties '${{inputs.system_properties}}']]
+  --pytorch_model_folder '${{outputs.pytorch_model_folder}}'
 

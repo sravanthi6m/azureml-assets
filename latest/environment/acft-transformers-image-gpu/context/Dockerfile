@@ -1,8 +1,13 @@
 # PTCA image
-FROM mcr.microsoft.com/aifx/acpt/vision/stable-ubuntu2004-cu117-py38-torch1131:biweekly.202309.1.v1
+FROM mcr.microsoft.com/aifx/acpt/stable-ubuntu2204-cu118-py310-torch222:biweekly.202503.2.v1
+
 USER root
-RUN apt-get -y update
+RUN apt-get -y update && apt-get install -y expat=2.4.7-1ubuntu0.5
 
 # Install required packages from pypi
 COPY requirements.txt .
 RUN pip install -r requirements.txt --no-cache-dir
+
+# Vulnerability Fix
+RUN pip install gunicorn==22.0.0
+RUN pip install certifi==2024.07.04
