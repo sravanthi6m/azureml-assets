@@ -28,7 +28,7 @@ dependencies:
   - lightgbm==4.7.0
   - msrest>=0.6.21,<0.7.1
   - mltable==1.7.0
-  - openai==3.2.0
+  - openai==3.3.0
   - mldesigner==0.1.0b23
   - tiktoken
   - idna==3.7
